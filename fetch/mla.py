@@ -58,7 +58,7 @@ def _pick(r, *cands):
 def fetch_range(iid, start, end):
     out, page = [], 1
     while True:
-        j = get(BASE + "/report/5", params={"indicatorID": iid, "fromDate": start, "toDate": end, "page": page}).json()
+        j = get(BASE + "/report/5", params={"indicatorID": iid, "fromDate": start, "toDate": end, "page": page}, tries=2).json()
         rows = _rows(j)
         for r in rows:
             d = _pick(r, "calendar_date", "date")
@@ -106,6 +106,7 @@ def weekly(series):
 
 def run():
     ilist = indicator_list()
+    print(f"  mla: {len(ilist)} indicators listed", flush=True)
     today = dt.date.today()
     charts, notes = [], []
     for cfg in MLA_INDICATORS:
@@ -120,9 +121,15 @@ def run():
             chunks = [(start, today)]
         else:
             chunks = [(dt.date(y, 1, 1), min(dt.date(y, 12, 31), today)) for y in range(MLA_START_YEAR, today.year + 1)]
-        for a, b in chunks:
-            for d, v, u in fetch_range(iid, a.isoformat(), b.isoformat()):
-                data[d] = v; unit = u or unit
+        try:
+            for a, b in chunks:
+                rows = fetch_range(iid, a.isoformat(), b.isoformat())
+                print(f"  mla {cfg['key']} {a.year}: {len(rows)} rows", flush=True)
+                for d, v, u in rows:
+                    data[d] = v; unit = u or unit
+        except Exception as e:
+            notes.append(f"{cfg['short']} fetch failed: {str(e)[:120]}")
+            print(f"  mla {cfg['key']} failed: {e}", flush=True)
         save_raw(cfg["key"], data, unit)
         s = sorted(data.items())
         if not s:

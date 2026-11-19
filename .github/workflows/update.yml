@@ -35,7 +35,7 @@ jobs:
           cache-dependency-path: fetch/requirements.txt
       - run: pip install -r fetch/requirements.txt
       - name: Fetch data
-        run: python fetch/run.py ${{ (github.event.inputs.force == 'true' || github.event_name == 'push') && '--force' || '' }}
+        run: python -u fetch/run.py ${{ (github.event.inputs.force == 'true' || github.event_name == 'push') && '--force' || '' }}
       - name: Commit data
         run: |
           git config user.name "github-actions[bot]"
