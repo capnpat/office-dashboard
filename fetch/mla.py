@@ -5,7 +5,7 @@ time from MLA_START_YEAR, saved under data/mla/, then topped up each day.
 """
 import csv, io, os, math, datetime as dt
 from common import get, read_json, write_json, now_iso, DATA
-from config import MLA_INDICATORS, MLA_START_YEAR
+from config import MLA_INDICATORS, MLA_START_YEAR, MLA_MAX_CHUNKS_PER_RUN
 
 BASE = "https://api-mlastatistics.mla.com.au"
 
@@ -109,6 +109,8 @@ def run():
     print(f"  mla: {len(ilist)} indicators listed", flush=True)
     today = dt.date.today()
     charts, notes = [], []
+    backfill = read_json("mla_backfill.json", {}) or {}
+    per_indicator = max(1, MLA_MAX_CHUNKS_PER_RUN // len(MLA_INDICATORS))
     for cfg in MLA_INDICATORS:
         iid, name = resolve(cfg, ilist)
         if iid is None:
@@ -116,14 +118,27 @@ def run():
             charts.append({"key": cfg["key"], "short": cfg["short"], "missing": True})
             continue
         data, unit = load_raw(cfg["key"])
+        done = set(backfill.get(cfg["key"], []))
+        chunks = []
         if data:
             start = dt.date.fromisoformat(max(data)) - dt.timedelta(days=14)
-            chunks = [(start, today)]
-        else:
-            chunks = [(dt.date(y, 1, 1), min(dt.date(y, 12, 31), today)) for y in range(MLA_START_YEAR, today.year + 1)]
+            chunks.append((start, today, None))
+        # history, newest year first, a limited number per run
+        budget = [per_indicator]
+        for y in range(today.year, MLA_START_YEAR - 1, -1):
+            if y == today.year and data:
+                continue
+            if y not in done:
+                chunks.append((dt.date(y, 1, 1), min(dt.date(y, 12, 31), today), y))
         try:
-            for a, b in chunks:
+            for a, b, y in chunks:
+                if y is not None and budget[0] <= 0:
+                    break
                 rows = fetch_range(iid, a.isoformat(), b.isoformat())
+                if y is not None:
+                    budget[0] -= 1
+                    if y < today.year:
+                        backfill.setdefault(cfg["key"], []).append(y)
                 print(f"  mla {cfg['key']} {a.year}: {len(rows)} rows", flush=True)
                 for d, v, u in rows:
                     data[d] = v; unit = u or unit
@@ -131,6 +146,7 @@ def run():
             notes.append(f"{cfg['short']} fetch failed: {str(e)[:120]}")
             print(f"  mla {cfg['key']} failed: {e}", flush=True)
         save_raw(cfg["key"], data, unit)
+        write_json("mla_backfill.json", backfill)
         s = sorted(data.items())
         if not s:
             charts.append({"key": cfg["key"], "short": cfg["short"], "missing": True}); continue
@@ -142,5 +158,8 @@ def run():
         charts.append({"key": cfg["key"], "short": cfg["short"], "name": name, "unit": unit,
                        "id": iid, "last_date": s[-1][0], "value": s[-1][1],
                        "wk_ago": ago(7), "yr_ago": ago(365), "weekly": w})
-    write_json("mla.json", {"updated": now_iso(), "charts": charts})
+    remaining = sum(1 for c in MLA_INDICATORS for y in range(MLA_START_YEAR, today.year) if y not in set(backfill.get(c["key"], [])))
+    if remaining:
+        notes.append(f"history still loading, {remaining} indicator-years to go")
+    write_json("mla.json", {"updated": now_iso(), "charts": charts, "backfill_remaining": remaining})
     return f"{sum(1 for c in charts if not c.get('missing'))}/{len(charts)} indicators" + (f" ({'; '.join(notes)})" if notes else "")

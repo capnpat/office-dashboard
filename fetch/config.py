@@ -17,6 +17,8 @@ MLA_INDICATORS = [
     {"key": "lxstr",  "short": "Live export steer", "match": ["live export"],          "id": None},
 ]
 MLA_START_YEAR = 2006
+# Years of history fetched per run while the 20-year backfill completes
+MLA_MAX_CHUNKS_PER_RUN = 40
 
 # Economic indicators (IMF DataMapper ISO3 codes, BIS ISO2 codes)
 COUNTRIES = [
@@ -56,4 +58,51 @@ MONITORED_PAGES = [
 ]
 
 # Minimum hours between refreshes of each block
-INTERVALS = {"fx": 1, "news": 0.4, "monitor": 1, "econ": 24, "mla": 20}
+# Commodity futures and freight proxy (Yahoo Finance symbols)
+MARKETS = [
+    {"sym": "ZC=F", "name": "Corn",          "unit": "USc/bu",  "group": "Grains"},
+    {"sym": "ZW=F", "name": "Wheat",         "unit": "USc/bu",  "group": "Grains"},
+    {"sym": "ZS=F", "name": "Soybeans",      "unit": "USc/bu",  "group": "Grains"},
+    {"sym": "ZM=F", "name": "Soybean meal",  "unit": "US$/st",  "group": "Grains"},
+    {"sym": "BZ=F", "name": "Brent crude",   "unit": "US$/bbl", "group": "Energy and freight"},
+    {"sym": "BDRY", "name": "Dry bulk freight (BDRY)", "unit": "US$", "group": "Energy and freight"},
+]
+
+# Weather locations (Open-Meteo). ytd=True adds rainfall to date against the 1991 to 2020 average.
+WEATHER = [
+    {"name": "Dandaragan", "lat": -30.67, "lon": 115.70, "ytd": True},
+    {"name": "Fremantle",  "lat": -32.05, "lon": 115.75},
+    {"name": "Darwin",     "lat": -12.46, "lon": 130.84},
+    {"name": "Townsville", "lat": -19.26, "lon": 146.82},
+]
+
+# WOAH WAHIS animal disease events. Countries are matched by name.
+DISEASE_COUNTRIES = ["Australia", "Indonesia", "Malaysia", "Viet Nam", "Thailand", "China (People's Rep. of)",
+                     "Philippines", "Brunei", "Israel", "Kuwait", "Qatar", "Jordan", "United Arab Emirates",
+                     "Saudi Arabia", "Oman", "Timor-Leste", "Papua New Guinea", "Cambodia", "Lao", "Myanmar"]
+DISEASE_DAYS = 120
+# Diseases shown with a red flag
+DISEASE_PRIORITY = ["foot and mouth", "lumpy skin", "african swine fever", "peste des petits", "sheep pox", "goat pox",
+                    "bluetongue", "anthrax", "rinderpest", "contagious bovine pleuropneumonia", "highly pathogenic avian influenza",
+                    "rift valley", "screwworm", "surra", "haemorrhagic septicaemia"]
+
+# DAFF all livestock exports by market (monthly spreadsheet)
+EXPORTS_PAGE = "https://www.agriculture.gov.au/biosecurity-trade/export/controlled-goods/live-animals/live-animal-export-statistics/livestock-exports-by-market"
+
+# AusTender approaches to market. Items whose title or description contains any keyword are kept.
+TENDERS_FEED = "https://www.tenders.gov.au/public_data/rss/rss.xml"
+TENDER_KEYWORDS = ["livestock", "animal welfare", "cattle", "sheep", "goat", "live export", "biosecurity", "veterinar",
+                   "traceability", "abattoir", "meat", "agricultur", "animal health", "export certification", "feedlot"]
+
+# Livestock carriers tracked on the map (names as broadcast on AIS, case-insensitive).
+# Needs the AISSTREAM_API_KEY repository secret. Positions come from shore-based
+# receivers, so a ship far offshore shows its last position heard.
+VESSELS = ["OCEAN DROVER", "OCEAN UTE", "OCEAN SWAGMAN", "OCEAN KELPIE", "OCEAN OUTBACK", "OCEAN SHEARER",
+           "BRAHMAN EXPRESS", "GALLOWAY EXPRESS", "GELBRAY EXPRESS", "ANGUS EXPRESS", "DEVON EXPRESS",
+           "BISON EXPRESS", "GLOUCESTER EXPRESS", "YANGTZE FORTUNE", "AL KUWAIT", "MAYSORA", "BAHIJAH", "JAWAN"]
+# Area listened to (south-west lat, lon; north-east lat, lon) and listening time per run
+VESSEL_BOX = [[-45, 30], [35, 160]]
+VESSEL_LISTEN_SECONDS = 120
+
+INTERVALS = {"fx": 1, "news": 0.4, "monitor": 1, "econ": 24, "mla": 20, "markets": 1, "weather": 1,
+             "disease": 3, "exports": 24, "tenders": 6, "vessels": 0.4}

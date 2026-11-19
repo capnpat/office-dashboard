@@ -1,11 +1,12 @@
 """Run each data block whose refresh interval has passed. Usage
 python fetch/run.py [--force] [block ...]"""
 import sys, datetime as dt, traceback
-import fx, mla, econ, news, monitor
+import fx, mla, econ, news, monitor, markets, weather, disease, exports, tenders, vessels
 from common import read_json, write_json, now_iso
 from config import INTERVALS
 
-BLOCKS = {"fx": fx, "news": news, "monitor": monitor, "econ": econ, "mla": mla}
+BLOCKS = {"fx": fx, "news": news, "monitor": monitor, "markets": markets, "weather": weather, "disease": disease,
+          "tenders": tenders, "exports": exports, "econ": econ, "vessels": vessels, "mla": mla}
 
 def due(status, name):
     last = status.get(name, {}).get("last_ok")

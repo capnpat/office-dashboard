@@ -6,7 +6,7 @@ from common import get, read_json, write_json, now_iso, DATA
 from config import MONITORED_PAGES
 
 def page_text(page):
-    r = get(page["url"])
+    r = get(page["url"], browser=True)
     soup = BeautifulSoup(r.text, "html.parser")
     node = soup.select_one(page.get("selector") or "body") or soup.body or soup
     for t in node(["script", "style", "noscript", "nav", "header", "footer", "form", "svg"]):
