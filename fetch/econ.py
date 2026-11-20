@@ -1,6 +1,6 @@
 """Economic indicators. IMF DataMapper for GDP growth, inflation and
 unemployment (annual, current-year estimate). BIS for central bank policy rates."""
-import csv, io, datetime as dt
+import csv, io, time, datetime as dt
 from common import get, write_json, read_json, now_iso
 from config import COUNTRIES, MANUAL_POLICY_RATES
 
@@ -8,12 +8,34 @@ IMF = "https://www.imf.org/external/datamapper/api/v1/{ind}/{codes}"
 IMF_INDS = {"gdp": "NGDP_RPCH", "cpi": "PCPIPCH", "unemp": "LUR"}
 BIS = "https://stats.bis.org/api/v1/data/WS_CBPOL/M.{codes}/all"
 
+WB = "https://api.worldbank.org/v2/country/{codes}/indicator/{ind}"
+WB_INDS = {"gdp": "NY.GDP.MKTP.KD.ZG", "cpi": "FP.CPI.TOTL.ZG", "unemp": "SL.UEM.TOTL.ZS"}
+
+def worldbank():
+    codes = ";".join(c["iso3"] for c in COUNTRIES)
+    out = {}
+    for k, ind in WB_INDS.items():
+        j = get(WB.format(codes=codes, ind=ind), params={"format": "json", "mrnev": 1, "per_page": 100}).json()
+        for r in (j[1] if len(j) > 1 and j[1] else []):
+            if r.get("value") is not None:
+                out.setdefault(r["countryiso3code"], {})[k] = {"value": r["value"], "year": r["date"], "src": "World Bank"}
+    return out
+
 def imf():
     codes = "/".join(c["iso3"] for c in COUNTRIES)
     yr = str(dt.date.today().year)
     out = {}
     for k, ind in IMF_INDS.items():
-        j = get(IMF.format(ind=ind, codes=codes)).json()
+        j = None
+        for wait in (0, 30, 90):
+            time.sleep(wait)
+            try:
+                j = get(IMF.format(ind=ind, codes=codes), tries=1, headers={"Accept": "application/json"}).json()
+                break
+            except Exception as e:
+                last = e
+        if j is None:
+            raise last
         vals = j.get("values", {}).get(ind, {})
         for c in COUNTRIES:
             s = vals.get(c["iso3"], {})
@@ -36,7 +58,11 @@ def run():
     try:
         im = imf()
     except Exception as e:
-        im = {}; notes.append(f"IMF failed: {e}")
+        im = {}; notes.append(f"IMF failed: {str(e)[:80]}")
+        try:
+            im = worldbank(); notes.append("using World Bank figures")
+        except Exception as e2:
+            notes.append(f"World Bank failed: {str(e2)[:80]}")
     try:
         rates = bis()
     except Exception as e:
@@ -52,6 +78,6 @@ def run():
                      "gdp": i.get("gdp"), "cpi": i.get("cpi"), "unemp": i.get("unemp"),
                      "rate": rates.get(c["iso2"])})
     write_json("econ.json", {"updated": now_iso(), "rows": rows, "notes": notes})
-    if not im and not rates:
+    if not im:
         raise RuntimeError("; ".join(notes))
     return "; ".join(notes) or "ok"

@@ -6,8 +6,8 @@
 <title>Market and trade monitor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<script src="vendor/leaflet/leaflet.js"></script>
 <style>
 :root{--bg:#0B0E13;--panel:#141921;--line:#1E2530;--border:#232B36;--text:#E6EDF3;--soft:#C9D3DD;--muted:#9AA6B2;--dim:#8A96A3;--up:#6CB6FF;--down:#F0883E;--flag:#E3B341;--alert:#FF7B72}
 *{box-sizing:border-box}
@@ -104,7 +104,7 @@ header .clock small{font-size:18px;color:var(--muted);font-weight:400}
         </div>
       </section>
       <section class="panel" id="p-econ" style="flex:1">
-        <div class="ph"><h2>Economic indicators</h2><span class="src">IMF, BIS</span></div>
+        <div class="ph"><h2>Economic indicators</h2><span class="src">IMF or World Bank, BIS</span></div>
         <div class="grid" id="econ" style="grid-template-columns:1fr 56px 56px 60px 74px">
           <span class="th l">Country</span><span class="th">GDP %</span><span class="th">CPI %</span><span class="th">Unemp</span><span class="th">Policy %</span>
         </div>
@@ -225,7 +225,15 @@ function tick(){
 setInterval(tick, 10000); tick();
 
 const NAMES = ['status', 'fx', 'econ', 'mla', 'news', 'monitor', 'markets', 'weather', 'disease', 'exports', 'tenders', 'vessels'];
-async function load(name){ try { const r = await fetch(`data/${name}.json?t=${Date.now()}`); if (!r.ok) throw 0; return await r.json(); } catch(e){ return null; } }
+const DATA_BASE = location.hostname.endsWith('github.io')
+  ? `https://raw.githubusercontent.com/${location.hostname.split('.')[0]}/${location.pathname.split('/')[1]}/main/data/`
+  : 'data/';
+async function load(name){
+  for (const base of [DATA_BASE, 'data/']){
+    try { const r = await fetch(`${base}${name}.json?t=${Date.now()}`, {cache: 'no-store'}); if (r.ok) return await r.json(); } catch(e){}
+  }
+  return null;
+}
 async function refresh(){ const got = await Promise.all(NAMES.map(load)); NAMES.forEach((n, i) => { if (got[i]) D[n] = got[i]; }); render(); }
 const LIMITS = {fx: 30, news: 6, monitor: 6, econ: 96, mla: 72, markets: 30, weather: 6, disease: 24, exports: 960, tenders: 48, vessels: 6};
 const PANELS = {fx: 'p-fx', econ: 'p-econ', mla: 'p-mla', news: 'p-news', monitor: 'p-mon', markets: 'p-markets', weather: 'p-weather', disease: 'p-disease', exports: 'p-exports', tenders: 'p-tenders', vessels: 'p-vessels'};
@@ -279,7 +287,8 @@ function renderEcon(){
       ['mono', `<span style="font-size:18px">${v(r.gdp)}</span>`], ['mono', `<span style="font-size:18px">${v(r.cpi)}</span>`],
       ['mono', `<span style="font-size:18px">${v(r.unemp)}</span>`], ['mono', `<span style="font-size:18px">${rate}</span>`]]);
   }
-  $('econ-note').textContent = rows.length ? `GDP growth, inflation and unemployment are IMF annual estimates for ${yr || 'the latest year'}. Policy rates from BIS, latest month. * entered by hand.` : '';
+  const wb = rows.some(r => r.gdp && r.gdp.src === 'World Bank');
+  $('econ-note').textContent = rows.length ? `GDP growth, inflation and unemployment are ${wb ? 'World Bank figures' : 'IMF estimates'} for ${yr || 'the latest year'}. Policy rates from BIS, latest month. * entered by hand.` : '';
 }
 
 const MONO = 'font-family="IBM Plex Mono, monospace"';
@@ -349,9 +358,10 @@ let vmap, vlayer;
 function renderVessels(){
   const v = D.vessels || {};
   if (window.L && !vmap){
-    vmap = L.map('vmap', {zoomControl: false, scrollWheelZoom: false}).fitBounds([[-38, 60], [28, 150]]);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 10}).addTo(vmap);
+    vmap = L.map('vmap', {zoomControl: false, scrollWheelZoom: false, worldCopyJump: true}).fitBounds([[-38, 40], [30, 150]]);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 10}).addTo(vmap);
     vlayer = L.layerGroup().addTo(vmap);
+    setTimeout(() => vmap.invalidateSize(), 500);
   }
   const ships = Object.values(v.ships || {}).filter(s => s.lat != null).sort((a, b) => (b.seen || '').localeCompare(a.seen || ''));
   if (vlayer){
@@ -365,7 +375,7 @@ function renderVessels(){
   }
   const list = $('vlist');
   if (v.note === 'no API key'){ list.innerHTML = '<div class="empty">Add the AISSTREAM_API_KEY secret to start tracking.</div>'; $('v-src').textContent = `${(v.watch || []).length} ships on watch list`; return; }
-  $('v-src').textContent = `${ships.length} of ${(v.watch || []).length} ships heard`;
+  $('v-src').textContent = `${ships.length} of ${(v.watch || []).length} ships located, positions from shore receivers`;
   list.innerHTML = ships.slice(0, 4).map(s => `<div class="row" style="padding:3px 0;align-items:baseline"><span style="font-size:14px;font-weight:600;width:140px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</span><span class="d" style="flex:1">${s.sog != null ? nf(s.sog, 1) + ' kn' : ''}${s.destination ? ', to ' + esc(s.destination) : ''}${s.eta ? ', ETA ' + esc(s.eta) : ''}</span><span class="t mono" style="width:auto">${when(s.seen)}</span></div>`).join('')
     || '<div class="empty">No watched ships heard yet. A position appears when a ship passes within range of a shore receiver.</div>';
 }

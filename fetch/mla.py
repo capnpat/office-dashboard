@@ -55,10 +55,22 @@ def _pick(r, *cands):
             return r[k]
     return None
 
+def _report(iid, start, end, page):
+    try:
+        return get(BASE + "/report/5", params={"indicatorID": iid, "fromDate": start, "toDate": end, "page": page}, tries=2).json()
+    except Exception as e:
+        body = getattr(getattr(e, "response", None), "text", "")[:200]
+        if body:
+            print(f"  mla {iid} {start}..{end} error body: {body}", flush=True)
+        y = (dt.date.fromisoformat(end) - dt.timedelta(days=1)).isoformat()
+        if end >= dt.date.today().isoformat() and y >= start:
+            return get(BASE + "/report/5", params={"indicatorID": iid, "fromDate": start, "toDate": y, "page": page}, tries=2).json()
+        raise
+
 def fetch_range(iid, start, end):
     out, page = [], 1
     while True:
-        j = get(BASE + "/report/5", params={"indicatorID": iid, "fromDate": start, "toDate": end, "page": page}, tries=2).json()
+        j = _report(iid, start, end, page)
         rows = _rows(j)
         for r in rows:
             d = _pick(r, "calendar_date", "date")

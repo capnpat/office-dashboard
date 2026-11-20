@@ -1,13 +1,14 @@
 # Market and trade monitor
 
-Office TV dashboard. Version 0.2.
+Office TV dashboard. Version 0.3.
 
 A single web page showing exchange rates, MLA cattle and sheep indicators over 20 years, economic indicators for Australia and five Asian markets, industry news, and alerts when monitored web pages change. GitHub Actions refreshes the data every 30 minutes and publishes the page through GitHub Pages.
 
 ## How it works
 
 - `fetch/` holds one Python script per data block. `fetch/run.py` runs whichever blocks are due and writes JSON into `data/`.
-- `.github/workflows/update.yml` runs on a schedule (twice an hour), commits the new data and republishes the site.
+- `.github/workflows/update.yml` runs `fetch/loop.py`, which stays up for about five and a half hours, refreshing data every 30 minutes and listening for ship positions in between, then starts the next run itself. GitHub's own scheduler is unreliable, so it is only used as a backup start every two hours.
+- The page reads the data straight from the repository (raw.githubusercontent.com), so data updates appear without republishing the site. The site is republished only when code changes.
 - `index.html` reads the JSON files every five minutes. It is laid out at 1920 × 1080 and scales to any screen.
 
 ## Refresh intervals

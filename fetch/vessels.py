@@ -11,7 +11,7 @@ def norm(s):
 
 WANT = {norm(v): v for v in VESSELS}
 
-async def listen(key, seconds, ships):
+async def listen_ws(key, seconds, ships):
     import websockets
     sub = {"APIKey": key, "BoundingBoxes": [VESSEL_BOX],
            "FilterMessageTypes": ["PositionReport", "ShipStaticData", "StandardClassBPositionReport"]}
@@ -53,7 +53,7 @@ async def listen(key, seconds, ships):
                     del tr[:-40]
     return n
 
-def run():
+def run(listen=None):
     prev = read_json("vessels.json", {}) or {}
     ships = prev.get("ships", {})
     key = os.environ.get("AISSTREAM_API_KEY")
@@ -63,13 +63,14 @@ def run():
     n, err = None, None
     for attempt in range(3):
         try:
-            n = asyncio.run(listen(key, VESSEL_LISTEN_SECONDS, ships))
+            n = asyncio.run(listen_ws(key, listen or VESSEL_LISTEN_SECONDS, ships))
             break
         except Exception as e:
             err = e
             time.sleep(10)
     if n is None:
         raise err
-    write_json("vessels.json", {"updated": now_iso(), "ships": ships, "watch": VESSELS, "messages": n})
+    write_json("vessels.json", {"updated": now_iso(), "ships": ships, "watch": VESSELS, "messages": n,
+                                "listened_s": listen or VESSEL_LISTEN_SECONDS})
     heard = sum(1 for s in ships.values() if s.get("seen"))
     return f"{n} AIS messages, {heard} tracked vessels with a position"
