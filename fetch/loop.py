@@ -13,8 +13,10 @@ CYCLE = 30 * 60
 BLOCK_LIMITS = {"mla": 600, "disease": 240, "econ": 420, "exports": 240, "weather": 240}
 DEADLINE = time.time() + float(os.environ.get("LOOP_MINUTES", "330")) * 60
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 def sh(*a):
-    return subprocess.run(a, capture_output=True, text=True)
+    return subprocess.run(a, capture_output=True, text=True, cwd=ROOT)
 
 def push(msg):
     sh("git", "add", "data")
@@ -23,8 +25,10 @@ def push(msg):
     sh("git", "commit", "-q", "-m", msg)
     for _ in range(3):
         sh("git", "pull", "-q", "--rebase", "origin", "main")
-        if sh("git", "push", "-q", "origin", "HEAD:main").returncode == 0:
+        r = sh("git", "push", "-q", "origin", "HEAD:main")
+        if r.returncode == 0:
             print("  pushed", flush=True); return
+        print("  push error", r.stderr.strip()[-300:], flush=True)
         time.sleep(5)
     print("  push failed", flush=True)
 
