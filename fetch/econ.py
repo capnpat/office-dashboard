@@ -1,7 +1,7 @@
 """Economic indicators. IMF DataMapper for GDP growth, inflation and
 unemployment (annual, current-year estimate). BIS for central bank policy rates."""
 import csv, io, datetime as dt
-from common import get, write_json, now_iso
+from common import get, write_json, read_json, now_iso
 from config import COUNTRIES, MANUAL_POLICY_RATES
 
 IMF = "https://www.imf.org/external/datamapper/api/v1/{ind}/{codes}"
@@ -42,9 +42,12 @@ def run():
     except Exception as e:
         rates = {}; notes.append(f"BIS failed: {e}")
     rates.update({k: dict(v, manual=True) for k, v in MANUAL_POLICY_RATES.items()})
+    prev = {r["country"]: r for r in (read_json("econ.json", {}) or {}).get("rows", [])}
     rows = []
     for c in COUNTRIES:
-        i = im.get(c["iso3"], {})
+        i = im.get(c["iso3"]) or {k: prev.get(c["name"], {}).get(k) for k in ("gdp", "cpi", "unemp")}
+        if c["iso2"] not in rates and prev.get(c["name"], {}).get("rate"):
+            rates[c["iso2"]] = prev[c["name"]]["rate"]
         rows.append({"country": c["name"], "rate_name": c["rate_name"],
                      "gdp": i.get("gdp"), "cpi": i.get("cpi"), "unemp": i.get("unemp"),
                      "rate": rates.get(c["iso2"])})
