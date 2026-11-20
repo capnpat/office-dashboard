@@ -57,14 +57,14 @@ def _pick(r, *cands):
 
 def _report(iid, start, end, page):
     try:
-        return get(BASE + "/report/5", params={"indicatorID": iid, "fromDate": start, "toDate": end, "page": page}, tries=2).json()
+        return get(BASE + "/report/5", params={"indicatorID": iid, "fromDate": start, "toDate": end, "page": page}, tries=2, timeout=20).json()
     except Exception as e:
         body = getattr(getattr(e, "response", None), "text", "")[:200]
         if body:
             print(f"  mla {iid} {start}..{end} error body: {body}", flush=True)
         y = (dt.date.fromisoformat(end) - dt.timedelta(days=1)).isoformat()
         if end >= dt.date.today().isoformat() and y >= start:
-            return get(BASE + "/report/5", params={"indicatorID": iid, "fromDate": start, "toDate": y, "page": page}, tries=2).json()
+            return get(BASE + "/report/5", params={"indicatorID": iid, "fromDate": start, "toDate": y, "page": page}, tries=1, timeout=20).json()
         raise
 
 def fetch_range(iid, start, end):

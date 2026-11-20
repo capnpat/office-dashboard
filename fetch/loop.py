@@ -9,6 +9,8 @@ import run as runner
 import vessels
 
 CYCLE = 30 * 60
+# Seconds each block may take per cycle before it is stopped
+BLOCK_LIMITS = {"mla": 600, "disease": 240, "econ": 420, "exports": 240, "weather": 240}
 DEADLINE = time.time() + float(os.environ.get("LOOP_MINUTES", "330")) * 60
 
 def sh(*a):
@@ -32,8 +34,19 @@ def main():
         t0 = time.time()
         stamp = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%MZ")
         print(f"== cycle {stamp}", flush=True)
-        blocks = [b for b in runner.BLOCKS if b != "vessels"]
-        runner.main((["--force"] if first and "--force" in sys.argv else []) + blocks)
+        force = ["--force"] if first and "--force" in sys.argv else []
+        for b in [b for b in runner.BLOCKS if b != "vessels"]:
+            limit = BLOCK_LIMITS.get(b, 180)
+            try:
+                r = subprocess.run([sys.executable, "-u", "run.py", *force, b], capture_output=True, text=True, timeout=limit)
+                print((r.stdout + r.stderr).strip()[-600:], flush=True)
+            except subprocess.TimeoutExpired:
+                print(f"{b}: stopped after {limit}s", flush=True)
+                st = runner.read_json("status.json", {}) or {}
+                st.setdefault(b, {}).update({"ok": False, "error": f"timed out after {limit}s"})
+                runner.write_json("status.json", st)
+            if b in ("markets", "weather"):
+                push(f"Data update {stamp}")
         push(f"Data update {stamp}")
         first = False
         listen = min(CYCLE - (time.time() - t0) - 60, DEADLINE - time.time() - 120)
