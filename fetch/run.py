@@ -13,7 +13,10 @@ def due(status, name):
     if not last:
         return True
     age = dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(last)
-    return age.total_seconds() / 3600 >= INTERVALS[name] - 0.05
+    interval = INTERVALS[name]
+    if "failed" in (status.get(name, {}).get("message") or "").lower():
+        interval = min(interval, 1)  # partial failure, try again within the hour
+    return age.total_seconds() / 3600 >= interval - 0.05
 
 def main(argv):
     force = "--force" in argv
