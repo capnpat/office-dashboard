@@ -18,7 +18,7 @@ async def listen(key, seconds, ships):
     known = [int(m) for m, s in ships.items() if s.get("mmsi")]
     end = time.time() + seconds
     n = 0
-    async with websockets.connect("wss://stream.aisstream.io/v0/stream", max_size=2**22) as ws:
+    async with websockets.connect("wss://stream.aisstream.io/v0/stream", max_size=2**22, open_timeout=45, ping_interval=None) as ws:
         await ws.send(json.dumps(sub))
         while time.time() < end:
             try:
@@ -60,7 +60,16 @@ def run():
     if not key:
         write_json("vessels.json", {"updated": now_iso(), "ships": ships, "watch": VESSELS, "note": "no API key"})
         return "skipped, no AISSTREAM_API_KEY secret"
-    n = asyncio.run(listen(key, VESSEL_LISTEN_SECONDS, ships))
+    n, err = None, None
+    for attempt in range(3):
+        try:
+            n = asyncio.run(listen(key, VESSEL_LISTEN_SECONDS, ships))
+            break
+        except Exception as e:
+            err = e
+            time.sleep(10)
+    if n is None:
+        raise err
     write_json("vessels.json", {"updated": now_iso(), "ships": ships, "watch": VESSELS, "messages": n})
     heard = sum(1 for s in ships.values() if s.get("seen"))
     return f"{n} AIS messages, {heard} tracked vessels with a position"

@@ -1,6 +1,6 @@
 # Market and trade monitor
 
-Office TV dashboard. Version 0.1.
+Office TV dashboard. Version 0.2.
 
 A single web page showing exchange rates, MLA cattle and sheep indicators over 20 years, economic indicators for Australia and five Asian markets, industry news, and alerts when monitored web pages change. GitHub Actions refreshes the data every 30 minutes and publishes the page through GitHub Pages.
 

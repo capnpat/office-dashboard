@@ -1,6 +1,6 @@
 """News from RSS feeds or, where a site has no feed, links scraped from its front page."""
 import re, hashlib, datetime as dt
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 import feedparser
 from bs4 import BeautifulSoup
 from common import get, read_json, write_json, now_iso
@@ -20,13 +20,17 @@ def rss(src):
     return out
 
 def scrape(src):
-    r = get(src["url"])
+    r = get(src["url"], browser=True)
     soup = BeautifulSoup(r.text, "html.parser")
-    seen, out = set(), []
+    seen, out, sample = set(), [], []
+    host = urlparse(src["url"]).netloc
     for a in soup.find_all("a", href=True):
         href = urljoin(src["url"], a["href"])
         title = " ".join(a.get_text(" ").split())
-        if src["link_contains"] not in href or len(title) < src.get("min_title", 20) or href in seen:
+        if len(sample) < 80:
+            sample.append([href, title[:80]])
+        ok_link = src["link_contains"] in href if src.get("link_contains") else (urlparse(href).netloc == host and urlparse(href).path.count("/") >= 2)
+        if not ok_link or len(title) < src.get("min_title", 20) or href in seen:
             continue
         seen.add(href)
         when = None
@@ -34,6 +38,8 @@ def scrape(src):
         if m:
             when = f"{m.group(3)}-{m.group(1)}-{m.group(2)}T00:00:00+00:00"
         out.append({"title": title, "url": href, "published": when})
+    if not out:
+        write_json(f"debug_{src['name'].lower().replace(' ', '')}.json", {"status": r.status_code, "length": len(r.text), "links": sample})
     return out[:30]
 
 def run():
