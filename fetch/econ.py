@@ -15,7 +15,7 @@ def worldbank():
     codes = ";".join(c["iso3"] for c in COUNTRIES)
     out = {}
     for k, ind in WB_INDS.items():
-        j = get(WB.format(codes=codes, ind=ind), params={"format": "json", "mrnev": 1, "per_page": 100}).json()
+        j = get(WB.format(codes=codes, ind=ind), params={"format": "json", "mrnev": 1, "per_page": 100}, timeout=90, tries=3).json()
         for r in (j[1] if len(j) > 1 and j[1] else []):
             if r.get("value") is not None:
                 out.setdefault(r["countryiso3code"], {})[k] = {"value": r["value"], "year": r["date"], "src": "World Bank"}
@@ -27,10 +27,11 @@ def imf():
     out = {}
     for k, ind in IMF_INDS.items():
         j = None
-        for wait in (0, 30, 90):
+        for wait in (0, 20):
             time.sleep(wait)
             try:
-                j = get(IMF.format(ind=ind, codes=codes), tries=1, headers={"Accept": "application/json"}).json()
+                j = get(IMF.format(ind=ind, codes=codes), tries=1, timeout=45, browser=True,
+                        headers={"Accept": "application/json", "Referer": "https://www.imf.org/external/datamapper/"}).json()
                 break
             except Exception as e:
                 last = e

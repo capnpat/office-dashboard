@@ -56,6 +56,11 @@ def _pick(r, *cands):
     return None
 
 def _report(iid, start, end, page):
+    # The API only accepts ranges ending before today (Australian eastern time)
+    yday = (dt.datetime.utcnow() + dt.timedelta(hours=10)).date() - dt.timedelta(days=1)
+    end = min(end, yday.isoformat())
+    if end < start:
+        return {"data": []}
     try:
         return get(BASE + "/report/5", params={"indicatorID": iid, "fromDate": start, "toDate": end, "page": page}, tries=2, timeout=20).json()
     except Exception as e:
